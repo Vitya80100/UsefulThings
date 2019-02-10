@@ -1,0 +1,75 @@
+Script/Function parameters:
+    Script or function can work with parameters. They should be declared at the top of the script/function.
+    The 'param' is used for specifying parameters:
+        param
+        (
+            [String[]] $TaskList = @("RestorePackages", "Build", "CopyArtifacts"), # Default value for list parameter
+            [String] $Configuration = "Debug", # Default value for string parameter
+        )
+
+    Additionally, you can make parameter mandatory adding [Parameter(Mandatory)] attribute:
+        [Parameter(Mandatory)]
+        [String] $SourceFolder
+
+    Also, you can use ValidateSet attribute to add the set of possible parameter values:
+        [ValidateSet('Value1', 'Value2', 'Value3')]
+        [String] $Parameter
+
+
+Passing parameters into the script:
+    Lets say we have following params:
+        param
+        (
+            [String[]] $TaskList = @("RestorePackages", "Build", "CopyArtifacts"),
+            [String] $Configuration,
+            [String] $BuildArtifactsFolder
+        )
+    
+    You can call script passing parameters one by one separated by space:
+        .\build.ps1 Task Debug C:\SomeFolder
+
+    In order to pass the list parameter, separate values by comma:
+        .\build.ps1 Task1, Task2, Task3 Debug C:\SomeFolder
+    
+    If you are passing parameter value with spaces inside (path the the folder, for example), separate this value with quotes:
+        .\build.ps1 Task Debug "C:\Some Folder"
+
+    Additionally, you can pass parameter by names using -ParameterName ParameterValue syntax:
+        .\build.ps1 CopyArtifacts -BuildArtifactsFolder "C:\Some Folder"
+    
+
+If-statements and conditions:
+    - Use standard if (condition) {} syntax
+    - Use -eq instead of ==. For example:
+        if ($Path -eq "C:\SomeFolder") { # Do something }
+    - Use -ne instead of !=. For example:
+        if ($Path -ne "C:\SomeFolder") { # Do something }
+ 
+
+Powershell built-in variables:
+    - $PSScriptRoot - gets the path of current script file
+    - $LastExitCode - gets exit code of last executed command. Usefull when you are calling othen exe-files (NuGet.exe, MSBuild.exe, etc.)
+        Returns 0 if command executed well, else returns error exit code (can be any integer value). 
+        So when handling errors, check if exit code was 0.
+    - $error - returns an error message (if any) of previous executed command. 
+        Use it when you are executing standard Powershell commands (New-Item, Copy-Item, etc.)
+        Usage example:
+            $error.clear()
+            CopyBuildArtifacts "src/PhpTravels.UITests/bin/Debug" "$BuildArtifactsFolder"
+            if($error)
+            {
+                Throw "An error occured while copying build artifacts."
+            }
+
+
+Jenkinsfile syntax:
+    Use 'powershell' command to execute powershell script. Example:
+        stage('Copy Build Artifacts')
+        {
+            powershell ".\\build.ps1 CopyArtifacts -BuildArtifactsFolder $buildArtifactsFolder"
+        }
+
+Usefull note:
+    If your path to exe-file (MSBuild, for example) has spaces inside, you can use the ampersand (&) for escaping:
+        & "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\msbuild.exe" src/Solution.sln
+        & $MSBuild $Solution

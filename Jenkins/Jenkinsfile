@@ -1,0 +1,95 @@
+properties([
+	parameters([
+		string (name: 'branchName', defaultValue: 'master', description: 'Branch to get the tests from')
+	])
+])
+
+def isFailed = false
+def branch = params.branchName
+def buildArtifctsFolder = "D:/Coding/FourteGroup/Jenkins/BuildPackages/$BUILD_ID"
+currentBuild.description = "Branch: $branch"
+
+def RunNUnitTests(String pathToDll, String condition, String reportName)
+{
+	try
+	{
+		bat "D:/Coding/FourteGroup/Jenkins/NUnit.Console-3.9.0/nunit3-console.exe $pathToDll $condition --result=$reportName"
+	}
+	finally
+	{
+		stash name: reportName, includes: reportName
+	}
+}
+
+node('master'){
+	
+	stage('Chechout')
+	{
+			git branch: branch, url: 'https://github.com/Vitya80100/atata-phptravels-uitests.git'
+	}
+	
+    stage('Restore NuGet')
+	{
+		powershell ".\\build.ps1 RestorePackages"
+    }
+	
+	stage('Build Solution')
+	{
+		powershell ".\\build.ps1 Build"
+    }
+	
+	stage('Copy Artifacts')
+	{
+		powershell ".\\build.ps1 CopyArtifacts -BuildDLLSFolder 'src/PhpTravels.UITests/bin/Debug' -BuildArtifactsFolder '$buildArtifctsFolder'"
+    }
+}
+
+	
+catchError
+{
+	isFailed = true
+		stage('Run Tests')
+		{
+			parallel Add: {
+				node('master'){
+					RunNUnitTests("$buildArtifctsFolder/PhpTravels.UITests.dll", "--where cat==Add", "TestResult1.xml")
+				}
+			}, Edit: {
+				node('Node 1'){
+					RunNUnitTests("$buildArtifctsFolder/PhpTravels.UITests.dll", "--where cat==Edit", "TestResult2.xml")
+				}
+			}
+		}
+	isFailed = false
+}
+
+node('master')
+{
+	stage('Reporting')
+	{
+		unstash "TestResult1.xml"
+		unstash "TestResult2.xml"
+		
+		archiveArtifacts '*.xml'
+		nunit testResultsPattern: 'TestResult1.xml, TestResult2.xml'
+		
+		if(isFailed)
+        {
+            slackSend color: 'danger', message: 'Tests failed.'
+        }
+        else
+        {
+            slackSend color: 'good', message: 'Tests passed.'
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
